@@ -25,7 +25,7 @@ class GestorTareas {
   notificar(evento, datos) {
     this.observadores.forEach((observador) => {
       try {
-        observador(evento, datos);
+        observador.notificar(evento, datos);
       } catch (error) {
         console.error("Error en observador:", error);
       }
