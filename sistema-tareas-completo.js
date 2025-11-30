@@ -70,21 +70,16 @@ class GestorTareas {
     return false;
   }
 
-  obtenerTareas(filtro = {}) {
+  // Aplica una o más estrategias de filtrado a la lista completa de tareas.
+  obtenerTareas(estrategias = []) {
     let tareas = Array.from(this.tareas.values());
 
-    if (filtro.completada !== undefined) {
-      tareas = tareas.filter((t) => t.completada === filtro.completada);
+    if (Array.isArray(estrategias)) {
+      // Aplicar cada estrategia de filtro secuencialmente.
+      for (const estrategia of estrategias) {
+        tareas = estrategia.ejecutar(tareas);
+      }
     }
-
-    if (filtro.prioridad) {
-      tareas = tareas.filter((t) => t.prioridad === filtro.prioridad);
-    }
-
-    if (filtro.tipo) {
-      tareas = tareas.filter((t) => t.tipo === filtro.tipo);
-    }
-
     return tareas;
   }
 
@@ -280,6 +275,48 @@ class ObservadorEstadisticas {
   }
 }
 
+// 5. Filtrado de tareas con Strategy Pattern
+class FiltroStrategy {
+  ejecutar() {
+    throw new Error(
+      "El método 'ejecutar' debe ser implementado por la subclase."
+    );
+  }
+}
+
+class FiltroPorCompletada extends FiltroStrategy {
+  constructor(estadoCompletada) {
+    super();
+    this.estadoCompletada = estadoCompletada;
+  }
+
+  ejecutar(tareas) {
+    return tareas.filter((t) => t.completada === this.estadoCompletada);
+  }
+}
+
+class FiltroPorPrioridad extends FiltroStrategy {
+  constructor(prioridad) {
+    super();
+    this.prioridad = prioridad;
+  }
+
+  ejecutar(tareas) {
+    return tareas.filter((t) => t.prioridad === this.prioridad);
+  }
+}
+
+class FiltroPorTipo extends FiltroStrategy {
+  constructor(tipo) {
+    super();
+    this.tipo = tipo;
+  }
+
+  ejecutar(tareas) {
+    return tareas.filter((t) => t.tipo === this.tipo);
+  }
+}
+
 // Demostración completa del sistema
 console.log("🚀 DEMOSTRACIÓN: SISTEMA COMPLETO DE GESTIÓN DE TAREAS\n");
 
@@ -323,6 +360,12 @@ const tareaConSubtareas = gestor.crearTarea("con-subtareas", {
   prioridad: "alta",
 });
 
+const tareaBasica2 = gestor.crearTarea("basica", {
+  titulo: "Jugar videojuegos",
+  descripcion: "Avanzar en resident evil",
+  prioridad: "baja",
+});
+
 // Agregar subtareas
 tareaConSubtareas.agregarSubtarea(
   "Investigar cliente",
@@ -348,6 +391,7 @@ for (let i = 0; i < 3; i++) {
 
 tareaConSubtareas.completarSubtarea(tareaConSubtareas.subtareas[0].id);
 tareaConSubtareas.completarSubtarea(tareaConSubtareas.subtareas[1].id);
+tareaBasica2.completar();
 
 console.log("\n📊 ESTADÍSTICAS FINALES:");
 console.log(gestor.obtenerEstadisticas());
@@ -360,5 +404,26 @@ pendientes.forEach((tarea) => {
 
 console.log("\n📈 ESTADÍSTICAS DE EVENTOS:");
 console.log(observadorEstadisticas.obtenerEstadisticas());
+
+console.log("\n🔄 DEMOSTRACIÓN DEL PATRÓN STRATEGY");
+
+const estrategiaPendientes = new FiltroPorCompletada(false);
+const tareasPendientes = gestor.obtenerTareas([estrategiaPendientes]);
+console.log("\n1. Tareas Pendientes:");
+tareasPendientes.forEach((t) => console.log(`- ${t.titulo} (${t.prioridad})`));
+
+const estrategiaCompletadas = new FiltroPorCompletada(true);
+const estrategiaBajaPrioridad = new FiltroPorPrioridad("baja");
+
+const completadasBaja = gestor.obtenerTareas([
+  estrategiaCompletadas,
+  estrategiaBajaPrioridad,
+]);
+console.log("\n2. Tareas Completadas de Prioridad Baja:");
+completadasBaja.forEach((t) =>
+  console.log(
+    `- ${t.titulo} (${t.prioridad}, ${t.completada ? "Completa" : "Pendiente"})`
+  )
+);
 
 console.log("\n🎯 Sistema de gestión de tareas completado exitosamente!");
