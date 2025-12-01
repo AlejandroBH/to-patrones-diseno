@@ -507,6 +507,88 @@ class GestorComandos {
   }
 }
 
+// 7. Añadir notificaciones por Email (Decorator Pattern)
+class GestorTareasEmailDecorator {
+  constructor(gestorTareasBase) {
+    this.gestorTareasBase = gestorTareasBase;
+  }
+
+  notificar(evento, datos) {
+    this.enviarEmailNotificacion(evento, datos);
+    this.gestorTareasBase.notificar(evento, datos);
+  }
+
+  enviarEmailNotificacion(evento, datos) {
+    if (evento === "tarea_creada" || evento === "tarea_actualizada") {
+      const emailSubject = `[Tarea ${evento}] ${datos.titulo}`;
+      let emailBody = `La tarea con ID ${datos.id} ha sido ${
+        evento === "tarea_creada" ? "creada" : "actualizada"
+      }.\n\n`;
+
+      emailBody += `Título: ${datos.titulo}\n`;
+      emailBody += `Prioridad: ${datos.prioridad}\n`;
+      emailBody += `Completada: ${datos.completada ? "Sí" : "No"}\n`;
+
+      // Simulación de envío de email
+      console.log(
+        `\n📧 [Email Enviado] \nAsunto: ${emailSubject}\nCuerpo:\n${emailBody}`
+      );
+    }
+  }
+
+  suscribir(observador) {
+    this.gestorTareasBase.suscribir(observador);
+  }
+
+  desuscribir(observador) {
+    this.gestorTareasBase.desuscribir(observador);
+  }
+
+  crearTarea(tipo, datos) {
+    return this.gestorTareasBase.crearTarea(tipo, datos);
+  }
+
+  obtenerTarea(id) {
+    return this.gestorTareasBase.obtenerTarea(id);
+  }
+
+  actualizarTarea(id, cambios) {
+    return this.gestorTareasBase.actualizarTarea(id, cambios);
+  }
+
+  eliminarTarea(id) {
+    return this.gestorTareasBase.eliminarTarea(id);
+  }
+
+  obtenerTareas(estrategias = []) {
+    return this.gestorTareasBase.obtenerTareas(estrategias);
+  }
+
+  obtenerEstadisticas() {
+    return this.gestorTareasBase.obtenerEstadisticas();
+  }
+
+  ejecutarCrearTarea(tipo, datos) {
+    return this.gestorTareasBase.ejecutarCrearTarea(tipo, datos);
+  }
+
+  ejecutarActualizarTarea(id, cambios) {
+    return this.gestorTareasBase.ejecutarActualizarTarea(id, cambios);
+  }
+
+  ejecutarEliminarTarea(id) {
+    return this.gestorTareasBase.ejecutarEliminarTarea(id);
+  }
+
+  deshacerUltimaAccion() {
+    return this.gestorTareasBase.deshacerUltimaAccion();
+  }
+
+  rehacerUltimaAccion() {
+    return this.gestorTareasBase.rehacerUltimaAccion();
+  }
+}
+
 // Demostración completa del sistema
 console.log("🚀 DEMOSTRACIÓN: SISTEMA COMPLETO DE GESTIÓN DE TAREAS\n");
 
@@ -661,6 +743,34 @@ console.log(
   }`
 );
 
-console.log("\n🎯 Demostración de Undo/Redo completada.");
+console.log("\n📧 DEMOSTRACIÓN DE NOTIFICACIONES POR EMAIL (DECORATOR)");
+
+const gestorBase = new GestorTareas();
+const gestorConEmails = new GestorTareasEmailDecorator(gestorBase);
+const observadorConsolaEmail = new ObservadorConsola();
+
+gestorConEmails.suscribir(observadorConsolaEmail);
+
+console.log(
+  "\n1. Creando una tarea a través del Decorator (esperar notificación por email y consola)..."
+);
+const tareaEmail = gestorConEmails.crearTarea("basica", {
+  titulo: "Revisar Documentación Decorator",
+  descripcion: "Leer la sección sobre uso práctico",
+  prioridad: "alta",
+});
+
+console.log(
+  "\n2. Actualizando el estado de la tarea a través del Decorator (esperar notificación por email y consola)..."
+);
+gestorConEmails.actualizarTarea(tareaEmail.id, {
+  completada: true,
+  prioridad: "media",
+});
+
+console.log(
+  "\n3. Eliminando la tarea a través del Decorator (solo notificación por consola)..."
+);
+gestorConEmails.eliminarTarea(tareaEmail.id);
 
 console.log("\n🎯 Sistema de gestión de tareas completado exitosamente!");
