@@ -10,6 +10,7 @@ class GestorTareas {
     this.tareas = new Map();
     this.siguienteId = 1;
     this.observadores = new Set();
+    this.gestorComandos = new GestorComandos();
     GestorTareas.instancia = this;
   }
 
@@ -98,6 +99,30 @@ class GestorTareas {
         return acc;
       }, {}),
     };
+  }
+
+  // Métodos de interfaz del comando
+  ejecutarCrearTarea(tipo, datos) {
+    const comando = new ComandoCrearTarea(this, tipo, datos);
+    return this.gestorComandos.ejecutarComando(comando);
+  }
+
+  ejecutarActualizarTarea(id, cambios) {
+    const comando = new ComandoActualizarTarea(this, id, cambios);
+    return this.gestorComandos.ejecutarComando(comando);
+  }
+
+  ejecutarEliminarTarea(id) {
+    const comando = new ComandoEliminarTarea(this, id);
+    return this.gestorComandos.ejecutarComando(comando);
+  }
+
+  deshacerUltimaAccion() {
+    return this.gestorComandos.deshacer();
+  }
+
+  rehacerUltimaAccion() {
+    return this.gestorComandos.rehacer();
   }
 }
 
@@ -317,6 +342,171 @@ class FiltroPorTipo extends FiltroStrategy {
   }
 }
 
+// 6. Interfaz Base del Comando
+class Comando {
+  constructor(gestorTareas) {
+    this.gestorTareas = gestorTareas;
+    this.datos = null;
+  }
+
+  ejecutar() {
+    throw new Error("El método 'ejecutar' debe ser implementado.");
+  }
+
+  deshacer() {
+    throw new Error("El método 'deshacer' debe ser implementado.");
+  }
+}
+
+// Comando para Crear Tarea
+class ComandoCrearTarea extends Comando {
+  constructor(gestorTareas, tipo, datos) {
+    super(gestorTareas);
+    this.tipo = tipo;
+    this.datosCreacion = datos;
+    this.tareaCreadaId = null;
+  }
+
+  ejecutar() {
+    const tarea = this.gestorTareas.crearTarea(this.tipo, this.datosCreacion);
+    this.tareaCreadaId = tarea.id;
+    return true;
+  }
+
+  deshacer() {
+    // La acción inversa es eliminar la tarea que se creó
+    if (this.tareaCreadaId !== null) {
+      return this.gestorTareas.eliminarTarea(this.tareaCreadaId);
+    }
+    return false;
+  }
+}
+
+// Comando para Actualizar Tarea
+class ComandoActualizarTarea extends Comando {
+  constructor(gestorTareas, id, cambios) {
+    super(gestorTareas);
+    this.id = id;
+    this.cambiosNuevos = cambios;
+    this.cambiosAntiguos = {};
+  }
+
+  ejecutar() {
+    const tarea = this.gestorTareas.obtenerTarea(this.id);
+
+    if (!tarea) return false;
+
+    for (const key in this.cambiosNuevos) {
+      if (key in tarea) {
+        this.cambiosAntiguos[key] = tarea[key];
+      }
+    }
+
+    Object.assign(tarea, this.cambiosNuevos);
+    this.gestorTareas.notificar("tarea_actualizada", tarea);
+    return true;
+  }
+
+  deshacer() {
+    const tarea = this.gestorTareas.obtenerTarea(this.id);
+    if (tarea) {
+      Object.assign(tarea, this.cambiosAntiguos);
+      this.gestorTareas.notificar("tarea_revertida", tarea);
+      return true;
+    }
+    return false;
+  }
+}
+
+// Comando para Eliminar Tarea
+class ComandoEliminarTarea extends Comando {
+  constructor(gestorTareas, id) {
+    super(gestorTareas);
+    this.id = id;
+    this.datosTareaEliminada = null;
+  }
+
+  ejecutar() {
+    const tarea = this.gestorTareas.obtenerTarea(this.id);
+
+    if (tarea) {
+      this.datosTareaEliminada = { ...tarea };
+      this.gestorTareas.tareas.delete(this.id);
+      this.gestorTareas.notificar("tarea_eliminada", tarea);
+      return true;
+    }
+    return false;
+  }
+
+  deshacer() {
+    if (this.datosTareaEliminada) {
+      const tareaRestaurada = this.datosTareaEliminada;
+      this.gestorTareas.tareas.set(tareaRestaurada.id, tareaRestaurada);
+      this.gestorTareas.notificar("tarea_restaurada", tareaRestaurada);
+      return true;
+    }
+    return false;
+  }
+}
+
+class GestorComandos {
+  constructor() {
+    this.historialUndo = [];
+    this.historialRedo = [];
+  }
+
+  ejecutarComando(comando) {
+    try {
+      if (comando.ejecutar()) {
+        this.historialUndo.push(comando);
+        this.historialRedo = [];
+        console.log(
+          `[Comando Ejecutado] Añadido al historial de Undo. Total: ${this.historialUndo.length}`
+        );
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error al ejecutar comando:", error.message);
+      return false;
+    }
+  }
+
+  deshacer() {
+    if (this.historialUndo.length > 0) {
+      const comando = this.historialUndo.pop();
+      if (comando.deshacer()) {
+        this.historialRedo.push(comando);
+        console.log(
+          `[Deshacer] Comando deshecho. Undo: ${this.historialUndo.length}, Redo: ${this.historialRedo.length}`
+        );
+        return true;
+      }
+      this.historialUndo.push(comando);
+    } else {
+      console.log("Nada que deshacer.");
+    }
+    return false;
+  }
+
+  rehacer() {
+    if (this.historialRedo.length > 0) {
+      const comando = this.historialRedo.pop();
+      if (comando.ejecutar()) {
+        this.historialUndo.push(comando);
+        console.log(
+          `[Rehacer] Comando re-ejecutado. Undo: ${this.historialUndo.length}, Redo: ${this.historialRedo.length}`
+        );
+        return true;
+      }
+      this.historialRedo.push(comando);
+    } else {
+      console.log("Nada que rehacer.");
+    }
+    return false;
+  }
+}
+
 // Demostración completa del sistema
 console.log("🚀 DEMOSTRACIÓN: SISTEMA COMPLETO DE GESTIÓN DE TAREAS\n");
 
@@ -425,5 +615,52 @@ completadasBaja.forEach((t) =>
     `- ${t.titulo} (${t.prioridad}, ${t.completada ? "Completa" : "Pendiente"})`
   )
 );
+
+console.log("\n🚀 DEMOSTRACIÓN DEL PATRÓN COMANDO");
+
+gestor.ejecutarCrearTarea("basica", {
+  titulo: "Preparar Reporte Mensual",
+  prioridad: "alta",
+});
+
+const idJugar = 5;
+
+gestor.ejecutarActualizarTarea(idJugar, { completada: false });
+console.log(
+  `Estado Tarea ${idJugar} ('Jugar') después de actualizar: ${
+    gestor.obtenerTarea(idJugar).completada ? "Completa" : "Pendiente"
+  }`
+);
+
+console.log(
+  "\n⏪ 2. Deshaciendo la última acción (Actualizar 'Jugar' a Completa)..."
+);
+gestor.deshacerUltimaAccion();
+console.log(
+  `Estado Tarea ${idJugar} ('Jugar') después de UNDO: ${
+    gestor.obtenerTarea(idJugar).completada ? "Completa" : "Pendiente"
+  }`
+);
+
+console.log("\n⏪ 3. Deshaciendo la penúltima acción (Eliminar 'Reporte')...");
+gestor.deshacerUltimaAccion();
+
+console.log(`Existe Tarea 6 ('Reporte'): ${!!gestor.obtenerTarea(6)}`);
+
+console.log("\n⏩ 4. Rehaciendo la acción (Re-crear 'Reporte')...");
+gestor.rehacerUltimaAccion();
+console.log(
+  `Existe Tarea 6 ('Reporte') después de REDO: ${!!gestor.obtenerTarea(6)}`
+);
+
+console.log("\n⏩ 5. Rehaciendo la acción (Actualizar 'Jugar' a Pendiente)...");
+gestor.rehacerUltimaAccion();
+console.log(
+  `Estado Tarea ${idJugar} ('Jugar') después de REDO: ${
+    gestor.obtenerTarea(idJugar).completada ? "Completa" : "Pendiente"
+  }`
+);
+
+console.log("\n🎯 Demostración de Undo/Redo completada.");
 
 console.log("\n🎯 Sistema de gestión de tareas completado exitosamente!");
